@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -452,13 +452,6 @@ static u32 igc_limited[IGC_LUT_ENTRIES] = {
 #define PP_FLAGS_DIRTY_PGC	0x100
 #define PP_FLAGS_DIRTY_SHARP	0x200
 #define PP_FLAGS_DIRTY_PA_DITHER 0x400
-
-#define PP_EARLY_PROGRAM_DIRTY_MASK (PP_FLAGS_DIRTY_PCC | \
-		PP_FLAGS_DIRTY_ENHIST | PP_FLAGS_DIRTY_HIST_COL)
-#define PP_DEFERRED_PROGRAM_DIRTY_MASK (PP_FLAGS_DIRTY_IGC | \
-		PP_FLAGS_DIRTY_PGC | PP_FLAGS_DIRTY_ARGC | \
-		PP_FLAGS_DIRTY_GAMUT | PP_FLAGS_DIRTY_PA | \
-		PP_FLAGS_DIRTY_DITHER | PP_FLAGS_DIRTY_PA_DITHER)
 
 /* Leave space for future features */
 #define PP_FLAGS_RESUME_COMMIT	0x10000000
@@ -1611,16 +1604,11 @@ int mdss_mdp_scaler_lut_cfg(struct mdp_scale_data_v2 *scaler,
 	};
 
 	mdata = mdss_mdp_get_mdata();
-
-	mutex_lock(&mdata->scaler_off->scaler_lock);
-
 	lut_tbl = &mdata->scaler_off->lut_tbl;
 	if ((!lut_tbl) || (!lut_tbl->valid)) {
-		mutex_unlock(&mdata->scaler_off->scaler_lock);
 		pr_err("%s:Invalid QSEED3 LUT TABLE\n", __func__);
 		return -EINVAL;
 	}
-
 	if ((scaler->lut_flag & SCALER_LUT_DIR_WR) ||
 		(scaler->lut_flag & SCALER_LUT_Y_CIR_WR) ||
 		(scaler->lut_flag & SCALER_LUT_UV_CIR_WR) ||
@@ -1667,8 +1655,6 @@ int mdss_mdp_scaler_lut_cfg(struct mdp_scale_data_v2 *scaler,
 				}
 		}
 	}
-
-	mutex_unlock(&mdata->scaler_off->scaler_lock);
 
 	return 0;
 }
@@ -2867,15 +2853,10 @@ int mdss_mdp_pp_setup_locked(struct mdss_mdp_ctl *ctl,
 		}
 	}
 
-	if (info->pp_program_mask & PP_NORMAL_PROGRAM_MASK) {
-		mdss_pp_res->pp_disp_flags[disp_num] &=
-				~PP_EARLY_PROGRAM_DIRTY_MASK;
-	}
 	if (info->pp_program_mask & PP_DEFER_PROGRAM_MASK) {
 		/* clear dirty flag */
 		if (disp_num < MDSS_BLOCK_DISP_NUM) {
-			mdss_pp_res->pp_disp_flags[disp_num] &=
-				~PP_DEFERRED_PROGRAM_DIRTY_MASK;
+			mdss_pp_res->pp_disp_flags[disp_num] = 0;
 			if (disp_num < mdata->nad_cfgs)
 				mdata->ad_cfgs[disp_num].reg_sts = 0;
 		}
@@ -4081,7 +4062,8 @@ int mdss_mdp_igc_lut_config(struct msm_fb_data_type *mfd,
 		if (config->len != IGC_LUT_ENTRIES) {
 			pr_err("invalid len for IGC table for read %d\n",
 			       config->len);
-			return -EINVAL;
+			ret = -EINVAL;
+			goto igc_config_exit;
 		}
 		ret = pp_get_dspp_num(disp_num, &dspp_num);
 		if (ret) {
@@ -4147,7 +4129,8 @@ clock_off:
 		if (config->len != IGC_LUT_ENTRIES) {
 			pr_err("invalid len for IGC table for write %d\n",
 			       config->len);
-			return -EINVAL;
+			ret = -EINVAL;
+			goto igc_config_exit;
 		}
 		if (copy_from_kernel) {
 			memcpy(&mdss_pp_res->igc_lut_c0c1[disp_num][0],

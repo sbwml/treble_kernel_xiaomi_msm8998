@@ -462,7 +462,7 @@ update_ts_time_stats(int cpu, struct tick_sched *ts, ktime_t now, u64 *last_upda
 {
 	ktime_t delta;
 
-	if (ts->idle_active) {
+	if (ts->idle_active && cpu_online(cpu)) {
 		delta = ktime_sub(now, ts->idle_entrytime);
 		if (nr_iowait_cpu(cpu) > 0)
 			ts->iowait_sleeptime = ktime_add(ts->iowait_sleeptime, delta);
@@ -521,7 +521,7 @@ u64 get_cpu_idle_time_us(int cpu, u64 *last_update_time)
 		update_ts_time_stats(cpu, ts, now, last_update_time);
 		idle = ts->idle_sleeptime;
 	} else {
-		if (ts->idle_active && !nr_iowait_cpu(cpu)) {
+		if (ts->idle_active && !nr_iowait_cpu(cpu) && cpu_online(cpu)) {
 			ktime_t delta = ktime_sub(now, ts->idle_entrytime);
 
 			idle = ktime_add(ts->idle_sleeptime, delta);
@@ -562,7 +562,7 @@ u64 get_cpu_iowait_time_us(int cpu, u64 *last_update_time)
 		update_ts_time_stats(cpu, ts, now, last_update_time);
 		iowait = ts->iowait_sleeptime;
 	} else {
-		if (ts->idle_active && nr_iowait_cpu(cpu) > 0) {
+		if (ts->idle_active && nr_iowait_cpu(cpu) > 0 && cpu_online(cpu)) {
 			ktime_t delta = ktime_sub(now, ts->idle_entrytime);
 
 			iowait = ktime_add(ts->iowait_sleeptime, delta);
@@ -589,11 +589,6 @@ static void tick_nohz_restart(struct tick_sched *ts, ktime_t now)
 		tick_program_event(hrtimer_get_expires(&ts->sched_timer), 1);
 }
 
-static inline bool local_timer_softirq_pending(void)
-{
-	return local_softirq_pending() & TIMER_SOFTIRQ;
-}
-
 static ktime_t tick_nohz_stop_sched_tick(struct tick_sched *ts,
 					 ktime_t now, int cpu)
 {
@@ -610,18 +605,8 @@ static ktime_t tick_nohz_stop_sched_tick(struct tick_sched *ts,
 	} while (read_seqretry(&jiffies_lock, seq));
 	ts->last_jiffies = basejiff;
 
-	/*
-	 * Keep the periodic tick, when RCU, architecture or irq_work
-	 * requests it.
-	 * Aside of that check whether the local timer softirq is
-	 * pending. If so its a bad idea to call get_next_timer_interrupt()
-	 * because there is an already expired timer, so it will request
-	 * immeditate expiry, which rearms the hardware timer with a
-	 * minimal delta which brings us back to this place
-	 * immediately. Lather, rinse and repeat...
-	 */
-	if (rcu_needs_cpu(basemono, &next_rcu) || arch_needs_cpu() ||
-	    irq_work_needs_cpu() || local_timer_softirq_pending()) {
+	if (rcu_needs_cpu(basemono, &next_rcu) ||
+	    arch_needs_cpu() || irq_work_needs_cpu()) {
 		next_tick = basemono + TICK_NSEC;
 	} else {
 		/*

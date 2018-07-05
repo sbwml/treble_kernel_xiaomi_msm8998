@@ -173,6 +173,7 @@ enum msm_actuator_write_type {
 enum msm_actuator_i2c_operation {
 	MSM_ACT_WRITE = 0,
 	MSM_ACT_POLL,
+	MSM_ACT_POLL_RESULT,
 };
 
 enum actuator_type {
@@ -367,7 +368,6 @@ struct msm_camera_csiphy_params {
 	unsigned char csid_core;
 	unsigned int csiphy_clk;
 	unsigned char csi_3phase;
-	uint64_t data_rate;
 };
 
 struct msm_camera_i2c_seq_reg_array {

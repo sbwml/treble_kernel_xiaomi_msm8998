@@ -187,7 +187,7 @@ struct dwc2_hsotg_ep {
 	unsigned char           dir_in;
 	unsigned char           index;
 	unsigned char           mc;
-	u16                     interval;
+	unsigned char           interval;
 
 	unsigned int            halted:1;
 	unsigned int            periodic:1;
