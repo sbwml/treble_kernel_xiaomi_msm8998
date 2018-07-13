@@ -496,15 +496,7 @@ static int rcar_i2c_master_xfer(struct i2c_adapter *adap,
 
 	pm_runtime_get_sync(dev);
 
-	/*-------------- spin lock -----------------*/
-	spin_lock_irqsave(&priv->lock, flags);
-
 	rcar_i2c_init(priv);
-	/* start clock */
-	rcar_i2c_write(priv, ICCCR, priv->icccr);
-
-	spin_unlock_irqrestore(&priv->lock, flags);
-	/*-------------- spin unlock -----------------*/
 
 	ret = rcar_i2c_bus_barrier(priv);
 	if (ret < 0)
@@ -663,6 +655,8 @@ static int rcar_i2c_probe(struct platform_device *pdev)
 	priv->io = devm_ioremap_resource(dev, res);
 	if (IS_ERR(priv->io))
 		return PTR_ERR(priv->io);
+
+	pm_runtime_put(dev);
 
 	irq = platform_get_irq(pdev, 0);
 	init_waitqueue_head(&priv->wait);
